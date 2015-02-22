@@ -5,10 +5,11 @@ define( ["text", "nunjucks"], function ( text, nunjucks ) {
         njConfig,
         njEnv,
         depEnv,
-        global = typeof window !== 'undefined' ? window : {},
         deps = [ 'nunjucks' ];
 
-    global.nunjucksPrecompiled || (global.nunjucksPrecompiled = {});
+    if ( typeof window !== 'undefined' ) {
+        window.nunjucksPrecompiled || (window.nunjucksPrecompiled = {});
+    }
 
     function getConfig ( cfg ) {
         if ( !njConfig ) {
@@ -78,7 +79,7 @@ define( ["text", "nunjucks"], function ( text, nunjucks ) {
         load : function ( name, req, load, config ) {
             var njConfig = getConfig( config.nunjucks ),
                 doLoad = function ( source ) {
-                    load( new Function( 'window', 'nunjucks', source )( global, nunjucks ) );
+                    load( new Function( 'nunjucks', source )( nunjucks ) );
                 };
             // load text files with text plugin
             text.get( req.toUrl( name + (njConfig.extension != null ? njConfig.extension : DEFAULT_EXTENSION) ), function ( str ) {
