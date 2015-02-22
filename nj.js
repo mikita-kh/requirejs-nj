@@ -82,7 +82,7 @@ define( ["text", "nunjucks"], function ( text, nunjucks ) {
         load : function ( name, req, load, config ) {
             var njConfig = getConfig( config.nunjucks ),
                 doLoad = function ( source ) {
-                    load( new Function( 'nunjucks', source )( nunjucks ) );
+                    load( new Function( 'nunjucks', 'return ' + source )( nunjucks ) );
                 };
             // load text files with text plugin
             text.get( req.toUrl( name + (njConfig.extension != null ? njConfig.extension : DEFAULT_EXTENSION) ), function ( str ) {
