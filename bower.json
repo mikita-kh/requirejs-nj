@@ -1,0 +1,26 @@
+{
+  "name": "requirejs-nj",
+  "version": "0.0.1",
+  "homepage": "https://github.com/nikitammf/requirejs-nj",
+  "authors": [
+    "Mikita Khatsimtsou <Mikita_Khatsimtsou@epam.com>"
+  ],
+  "description": "Using Nunjucks templates with requirejs",
+  "main": "nj.js",
+  "keywords": [
+    "requrejs",
+    "nunjucks"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "nunjucks": "~1.2.0",
+    "requirejs-text": "~2.0.14"
+  }
+}
