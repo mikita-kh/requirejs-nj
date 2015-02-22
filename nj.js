@@ -26,6 +26,9 @@ define( ["text", "nunjucks"], function ( text, nunjucks ) {
             if ( !njConfig.env.options ) {
                 njConfig.env.options = {};
             }
+            if ( njConfig.asFunction !== false ) {
+                njConfig.asFunction = true;
+            }
         }
         return njConfig;
     }
@@ -85,7 +88,7 @@ define( ["text", "nunjucks"], function ( text, nunjucks ) {
             text.get( req.toUrl( name + (njConfig.extension != null ? njConfig.extension : DEFAULT_EXTENSION) ), function ( str ) {
                 function compileTemplate ( env ) {
                     njEnv = njEnv || env || nunjucks.configure( njConfig.env.path, njConfig.env.options );
-                    var source = precompileString( str, name, njEnv, true );
+                    var source = precompileString( str, name, njEnv, njConfig.asFunction );
                     var dependencies = (source.match( /getTemplate\("(.*?)"/g ) || []).map( function ( t ) {
                         return t.replace( 'getTemplate(', '' )
                     } );
