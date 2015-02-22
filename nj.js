@@ -5,7 +5,8 @@ define( ["text", "nunjucks"], function ( text, nunjucks ) {
         njConfig,
         njEnv,
         depEnv,
-        global = typeof window !== 'undefined' ? window : {};
+        global = typeof window !== 'undefined' ? window : {},
+        deps = [ 'nunjucks' ];
 
     global.nunjucksPrecompiled || (global.nunjucksPrecompiled = {});
 
@@ -89,7 +90,7 @@ define( ["text", "nunjucks"], function ( text, nunjucks ) {
                     } );
                     buildMap[name] = {
                         source       : source,
-                        dependencies : ['"nunjucks"'].concat( dependencies.map( function ( d ) {
+                        dependencies : deps.concat( dependencies.map( function ( d ) {
                             return '"' + d + '"';
                         } ) )
                     };
@@ -107,7 +108,8 @@ define( ["text", "nunjucks"], function ( text, nunjucks ) {
                 }
 
                 if ( depEnv && !njEnv ) {
-                    req( depEnv, compileTemplate );
+                    deps.push( depEnv );
+                    req( [depEnv], compileTemplate );
                 } else {
                     compileTemplate();
                 }
