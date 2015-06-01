@@ -1,130 +1,98 @@
-define( ["text", "nunjucks"], function ( text, nunjucks ) {
+define(['text', 'nunjucks'], function (text, nunjucks) {
 
-    var DEFAULT_EXTENSION = ".html";
-    var buildMap = {},
-        njConfig,
-        njEnv,
-        depEnv,
-        deps = [ 'nunjucks' ];
+    var buildMap = {};
+    var env = new nunjucks.Environment([]);
 
-    if ( typeof window !== 'undefined' ) {
-        window.nunjucksPrecompiled || (window.nunjucksPrecompiled = {});
-    }
+    var compiler = nunjucks.compiler;
 
-    function getConfig ( cfg ) {
-        if ( !njConfig ) {
-            njConfig = cfg || {};
-            if ( typeof njConfig.env === 'string' ) {
-                depEnv = njConfig.env;
-            }
-            if ( !njConfig.env || njConfig.env.constructor !== Object ) {
-                njConfig.env = {};
-            }
-            if ( !njConfig.env.path ) {
-                njConfig.env.path = '/';
-            }
-            if ( !njConfig.env.options ) {
-                njConfig.env.options = {};
-            }
-            if ( njConfig.asFunction !== false ) {
-                njConfig.asFunction = true;
-            }
-        }
-        return njConfig;
-    }
+    var pathToConfigure;
+    var isConfigured = false;
+    var commentRegExp = /(\/\*([\s\S]*?)\*\/|([^:]|^)\/\/(.*)$)/mg;
+    var cjsRequireRegExp = /[^.]\s*require\s*\(\s*["']([^'"\s]+)["']\s*\)/g;
 
-    function precompileString ( str, name, env, asFunction ) {
-        var lib = nunjucks.require( 'lib' ),
-            compiler = nunjucks.require( 'compiler' );
-
-        env = env || new Environment( [] );
-
-        var asyncFilters = env.asyncFilters;
-        var extensions = env.extensionsList;
-
-        var out = '(function() {' +
-            '(window.nunjucksPrecompiled = window.nunjucksPrecompiled || {})' +
-            '["' + name.replace( /\\/g, '/' ) + '"] = (function() {';
-
-        out += lib.withPrettyErrors(
-            name,
-            false,
-            function () {
-                return compiler.compile( str,
-                    asyncFilters,
-                    extensions,
-                    name );
-            }
-        );
-        out += '})();\n';
-
-        if ( asFunction ) {
-            out += 'return function(ctx, cb) { return nunjucks.render("' + name + '", ctx, cb); }';
+    function compileTemplate(source) {
+        var nunjucksCompiledStr = compiler.compile(source, env.asyncFilters, env.extensionsList);
+        var reg = /env\.getTemplate\(\"(.*?)\"/g;
+        var match;
+        var required = {};
+        var dependencies = [];
+        var compiledTemplate = '\n';
+        compiledTemplate += 'var nunjucks = require("nunjucks");\n';
+        compiledTemplate += 'var env = new nunjucks.Environment([]);\n';
+        // Add a dependencies object to hold resolved dependencies
+        compiledTemplate += 'var dependencies = {};\n';
+        if (pathToConfigure) {
+            compiledTemplate += 'var configure = require("' + pathToConfigure + '")(env);\n';
         }
 
-        out += '})();\n';
-        return out;
-    }
+        while (match = reg.exec(nunjucksCompiledStr)) {
+            var templateRef = match[1];
+            if (!required[templateRef]) {
+                // Require the dependency by name, so it get bundled by webpack
+                compiledTemplate += 'dependencies["' + templateRef + '"] = require( "' + templateRef + '" );\n';
+                required[templateRef] = 1;
+            }
+        }
+        compiledTemplate += 'var shim = require("runtime-shim");\n';
+        compiledTemplate += '\n\n\n\n';
+        compiledTemplate += 'var obj = (function () {' + nunjucksCompiledStr + '})();\n';
+        compiledTemplate += 'module.exports = shim(nunjucks, env, obj, dependencies);\n';
 
-    if ( typeof nunjucks.precompileString === 'function' ) {
-        precompileString = function ( str, name, env, asFunction ) {
-            var source = nunjucks.precompileString( str, {
-                name       : name,
-                env        : env,
-                asFunction : asFunction
-            } );
-            return source;
+        compiledTemplate
+            .replace(commentRegExp, '')
+            .replace(cjsRequireRegExp, function (match, dependency) {
+                dependencies.push(dependency);
+            });
+
+        return {
+            compiledTemplate: compiledTemplate,
+            dependencies: dependencies
         };
     }
 
     return {
-
-        load : function ( name, req, load, config ) {
-            var njConfig = getConfig( config.nunjucks ),
-                doLoad = function ( source ) {
-                    load( new Function( 'nunjucks', 'return ' + source )( nunjucks ) );
-                };
+        load: function (name, req, load, config) {
+            pathToConfigure = pathToConfigure || config.nunjucks && config.nunjucks.configure;
             // load text files with text plugin
-            text.get( req.toUrl( name + (njConfig.extension != null ? njConfig.extension : DEFAULT_EXTENSION) ), function ( str ) {
-                function compileTemplate ( env ) {
-                    njEnv = njEnv || env || nunjucks.configure( njConfig.env.path, njConfig.env.options );
-                    var source = precompileString( str, name, njEnv, njConfig.asFunction );
-                    var dependencies = (source.match( /getTemplate\("(.*?)"/g ) || []).map( function ( t ) {
-                        return t.replace( 'getTemplate(', '' )
-                    } );
-                    buildMap[name] = {
-                        source       : source,
-                        dependencies : deps.concat( dependencies ).map( function ( d ) {
-                            return '"' + d + '"';
-                        } )
-                    };
-                    if ( !config.isBuild ) {
-                        if ( dependencies.length ) {
-                            req( dependencies, function () {
-                                doLoad( source );
-                            } );
-                        } else {
-                            doLoad( source );
+            text.get(req.toUrl(name), function (str) {
+                req([pathToConfigure].filter(Boolean), function (configure) {
+                    if (!isConfigured && pathToConfigure) {
+                        isConfigured = true;
+                        if (typeof configure !== 'function') {
+                            if (requirejs.nodeRequire) {
+                                configure = requirejs.nodeRequire(req.toUrl(pathToConfigure));
+                            }
+                            if (typeof configure !== 'function') {
+                                throw new Error('config.nunjucks.configure is not a function');
+                            }
                         }
-                    } else {
-                        load( str );
+                        configure(env);
                     }
-                }
-
-                if ( depEnv && !njEnv ) {
-                    deps.push( depEnv );
-                    req( [depEnv], compileTemplate );
-                } else {
-                    compileTemplate();
-                }
-            } );
+                    try {
+                        var obj = buildMap[name] = compileTemplate(str);
+                    } catch (ex) {
+                        console.log(ex.message);
+                        throw ex;
+                    }
+                    if (!config.isBuild) {
+                        req(obj.dependencies, function () {
+                            load(new Function('require', 'exports', 'module', obj.compiledTemplate + 'return module.exports;')(req, {}, {}));
+                        });
+                    } else {
+                        load(str);
+                    }
+                });
+            });
         },
 
-        write : function ( pluginName, moduleName, writeModule ) {
-            if ( moduleName in buildMap ) {
-                writeModule( 'define("' + pluginName + '!' + moduleName + '", [' + buildMap[moduleName].dependencies + '], function(nunjucks){return ' + buildMap[moduleName].source + '})' );
+        write: function (pluginName, moduleName, writeModule) {
+            if (moduleName in buildMap) {
+                var deps = buildMap[moduleName].dependencies.map(function (dep) {
+                    return '"' + dep + '"';
+                });
+                writeModule('define("' + pluginName + '!' + moduleName + '", ["require", "exports", "module", ' + deps.join(', ') + '], function ( require, exports, module ) { ' + buildMap[moduleName].compiledTemplate + ';});');
             }
         }
 
     };
-} );
+});
