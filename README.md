@@ -112,8 +112,11 @@ requirejs.config({
 });  
 ```  
   
-## Build process  
-Nunjucks <= 1.3.4 have issue with r.js. `Cannot read property FileSystemLoader of undefined`. Use r.js optimizer with next configuration:  
+## Build process
+Nunjucks <= 1.3.4 have issue with r.js. `Cannot read property FileSystemLoader of undefined`. Use r.js with next points:
+
+`npm install nunjucks --save-dev`
+
 ``` javascript  
 // file: build.config.js  
 ({  
