@@ -28,8 +28,7 @@ define(['text', 'nunjucks'], function (text, nunjucks) {
         while (match = reg.exec(nunjucksCompiledStr)) {
             var templateRef = match[1];
             if (!required[templateRef]) {
-                // Require the dependency by name, so it get bundled by webpack
-                compiledTemplate += 'dependencies["' + templateRef + '"] = require( "' + templateRef + '" );\n';
+                 compiledTemplate += 'dependencies["' + templateRef + '"] = require( "nj!' + templateRef + '" );\n';
                 required[templateRef] = 1;
             }
         }
